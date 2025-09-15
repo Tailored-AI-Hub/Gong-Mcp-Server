@@ -1,0 +1,55 @@
+{
+  "name": "@tailoredai/gong-mcp-server",
+  "version": "1.0.0",
+  "description": "A Gong API connector MCP Server.",
+  "main": "dist/start.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "bin": {
+    "gong-connector": "dist/start.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc && shx chmod +x dist/*.js",
+    "prepare": "npm run build",
+    "watch": "tsc --watch",
+    "test": "npm run test:unit && npm run test:integration && npm run test:performance",
+    "test:unit": "node --test test/unit-tests.js",
+    "test:integration": "node --test test/integration-tests.js",
+    "test:performance": "node --test test/performance-tests.js",
+    "test:all": "node --test test/*.js",
+    "test:watch": "node --test --watch test/*.js"
+  },
+  "keywords": [
+    "mcp",
+    "gong",
+    "claude",
+    "ai",
+    "call-analytics"
+  ],
+  "author": "kapilsoni129",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tailored-AI-Hub/Gong-Mcp-Server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Tailored-AI-Hub/Gong-Mcp-Server/issues"
+  },
+  "homepage": "https://github.com/Tailored-AI-Hub/Gong-Mcp-Server#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "0.5.0",
+    "@pinecone-database/pinecone": "^6.1.2",
+    "axios": "^1.6.0",
+    "dotenv": "^17.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "nock": "^13.3.8",
+    "shx": "^0.3.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
+  }
+}

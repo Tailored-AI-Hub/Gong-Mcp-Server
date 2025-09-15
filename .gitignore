@@ -1,0 +1,9 @@
+dist/
+node_modules/
+.env
+.DS_Store
+package-lock.json
+coverage/
+npm-debug.log*
+yarn-error.log*
+*.tsbuildinfo

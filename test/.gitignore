@@ -1,0 +1,11 @@
+# Test artifacts
+test-results/
+coverage/
+*.log
+
+# Temporary test files  
+temp-*
+.test-*
+
+# Debug files
+debug-*
