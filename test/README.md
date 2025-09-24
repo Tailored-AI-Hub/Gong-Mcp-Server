@@ -112,7 +112,7 @@ Tests use mocked HTTP responses, so no real Gong API credentials needed:
 
 ```bash
 export GONG_ACCESS_KEY="test_key"
-export GONG_ACCESS_SECRET="test_secret"
+export GONG_ACCESS_KEY_SECRET="test_secret"
 ```
 
 ## 📈 Expected Results
