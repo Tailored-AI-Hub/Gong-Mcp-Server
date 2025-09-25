@@ -1,5 +1,7 @@
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { GongConnection } from "../utils/connection.js";
+import { GongTranscript, GongTranscriptResponse, GongTranscriptSegment, GongTranscriptSentence } from "../types/gong.js";
+import { buildPaginationParams, computeAndFormatPagination } from "../utils/helpers.js";
 
 export const GET_TRANSCRIPT: Tool = {
   name: "gong_get_transcript",
@@ -9,7 +11,9 @@ Example:
 {
   "filter": {
     "callIds": ["379333695432645797", "2167868958109749118"]
-  }
+  },
+  "pageNumber": 0,
+  "pageSize": 100,
 }
 
 Returns: For each call, a formatted transcript including speaker IDs and per-sentence timing with mm:ss ranges.
@@ -17,7 +21,8 @@ Returns: For each call, a formatted transcript including speaker IDs and per-sen
 Notes:
 - At least one callId is required.
 - Not all calls have transcripts; if none are available, you'll receive a descriptive error.
-- Timestamps are rendered for readability and may be rounded.`,
+- Timestamps are rendered for readability and may be rounded.
+- Use pageNumber (zero-based) and pageSize to paginate.`,
   inputSchema: {
     type: "object",
     properties: {
@@ -33,7 +38,15 @@ Notes:
           }
         },
         required: ["callIds"]
-      }
+      },
+      pageNumber: {
+        type: "number",
+        description: "Zero-based page number to fetch"
+      },
+      pageSize: {
+        type: "number",
+        description: "Number of calls per page (e.g., 100)"
+      },
     },
     required: ["filter"]
   }
@@ -41,6 +54,8 @@ Notes:
 
 export interface GetTranscriptArgs {
   callIds: string[];
+  pageNumber?: number;
+  pageSize?: number;
 }
 
 export async function handleGetTranscript(conn: GongConnection, args: GetTranscriptArgs): Promise<{ content: string[] }> {
@@ -50,81 +65,43 @@ export async function handleGetTranscript(conn: GongConnection, args: GetTranscr
       throw new Error('callIds array is required and must not be empty');
     }
 
-    const requestBody = {
+    const paginationParams = buildPaginationParams(args);
+
+    const params = {
+      ...paginationParams,
       filter: {
         callIds: args.callIds
-      }
+      },
     };
 
     // Call Gong API for transcripts
-    const response = await conn.post<any>('/calls/transcript', requestBody);
+    const response = await conn.get<GongTranscriptResponse>('/calls/transcript', params);
 
-    // Handle different possible API response structures
-    let callTranscripts: any[] = [];
-    
-    if (response && response.callTranscripts && Array.isArray(response.callTranscripts)) {
-      // Newer Gong API format
-      callTranscripts = response.callTranscripts;
-    } else if (response && response.transcripts && Array.isArray(response.transcripts)) {
-      // Alternative transcripts property
-      callTranscripts = response.transcripts;
-    } else if (Array.isArray(response)) {
-      // Direct array response
-      callTranscripts = response;
-    } else if (response && response.data && Array.isArray(response.data)) {
-      // Nested data property
-      callTranscripts = response.data;
-    } else {
-      // Log the actual response structure for debugging
-      console.log('Unexpected transcript response structure:', typeof response, Object.keys(response || {}));
-      throw new Error('Unexpected API response structure - callTranscripts not found in expected format');
-    }
-
-    if (callTranscripts.length === 0) {
-      throw new Error("No transcripts found for the given call IDs.");
-    }
-
-    // Format each call transcript
-    const content: string[] = callTranscripts.map((call: any) => {
-      let out = `Transcript for Call ID: ${call.callId || call.call_id || 'Unknown'}\n`;
-      
-      // Handle different transcript structures
-      let transcriptSegments: any[] = [];
-      if (call.transcript && Array.isArray(call.transcript)) {
-        transcriptSegments = call.transcript;
-      } else if (call.segments && Array.isArray(call.segments)) {
-        transcriptSegments = call.segments;
-      } else if (call.data && Array.isArray(call.data)) {
-        transcriptSegments = call.data;
-      }
-      
-      out += `Total Segments: ${transcriptSegments.length}\n`;
+    const content: string[] = response.callTranscripts.map((call: GongTranscript) => {
+      let out = `Transcript for Call ID: ${call.callId}\n`;
+      out += `Total Segments: ${call.transcript.length}\n`;
       out += `\nTranscript:\n`;
-
-      // Each segment may have multiple sentences
-      for (const segment of transcriptSegments) {
-        const speaker = segment.speakerId || segment.speaker_id || segment.speaker || 'Unknown';
-        
-        // Handle different sentence structures
-        let sentences: any[] = [];
-        if (segment.sentences && Array.isArray(segment.sentences)) {
-          sentences = segment.sentences;
-        } else if (segment.text) {
-          // Single text segment
-          sentences = [{ text: segment.text, start: segment.start || 0, end: segment.end || 0 }];
-        }
-        
-        for (const sentence of sentences) {
-          const startTime = sentence.start || sentence.startTime || 0;
-          const endTime = sentence.end || sentence.endTime || 0;
-          const text = sentence.text || 'No text available';
-          out += `[${formatTime(startTime / 1000)} - ${formatTime(endTime / 1000)}] ${speaker}: ${text}\n`;
-        }
-      }
+      const content = call.transcript.map((segment: GongTranscriptSegment) => {
+        `Speaker ID: ${segment.speakerId}\n`;
+        out += `Total Sentences: ${segment.sentences.length}\n`;
+        out += `\nSentences:\n`;
+        const sentences = segment.sentences.map((sentence: GongTranscriptSentence) => {
+          return `[${formatTime(sentence.start / 1000)} - ${formatTime(sentence.end / 1000)}] ${sentence.text}\n`;
+        });
+        out += sentences.join('\n');
+      });
+      out += content.join('\n');
       return out.trim();
     });
 
-    return { content };
+    const { summary: paginationInfo } = computeAndFormatPagination(
+      response.records,
+      typeof args.pageNumber === 'number' ? args.pageNumber : 0,
+      typeof args.pageSize === 'number' ? args.pageSize : response.callTranscripts.length,
+      response.callTranscripts.length
+    );
+
+    return { content: [paginationInfo, ...content] };
   } catch (error) {
     throw new Error(`Failed to get transcript: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }

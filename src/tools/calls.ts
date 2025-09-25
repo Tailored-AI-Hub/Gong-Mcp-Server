@@ -1,5 +1,6 @@
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { GongConnection } from "../utils/connection.js";
+import { GongCall, GongCallResponse, GongRecords, GongCallSingleResponse } from "../types/gong.js";
 import { buildPaginationParams, computeAndFormatPagination } from "../utils/helpers.js";
 
 export const LIST_CALLS: Tool = {
@@ -96,7 +97,7 @@ export interface GetCallArgs {
 }
 
 // Helper: normalize a raw Gong call object into a consistent shape
-function normalizeCall(raw: any): {
+function normalizeCall(raw: GongCall): {
   id: string;
   title: string;
   direction: string;
@@ -111,7 +112,7 @@ function normalizeCall(raw: any): {
   const direction = raw?.direction ?? 'N/A';
   const scheduled = raw?.scheduled ?? 'N/A';
   const started = raw?.started ?? 'N/A';
-  const duration = raw?.duration ?? 'N/A';
+  const duration = raw?.duration ?? 0;
   const purpose = raw?.purpose ?? 'N/A';
   const language = raw?.language ?? 'N/A';
   return { id, title, direction, scheduled, started, duration, purpose, language };
@@ -131,12 +132,17 @@ function formatCallListEntry(call: ReturnType<typeof normalizeCall>): string {
 }
 
 // Helper: extract calls and records safely
-function extractCallsAndRecords(response: any): { calls: any[]; records: any } {
+function extractCallsAndRecords(response: GongCallResponse): { calls: GongCall[]; records: GongRecords } {
   if (!response?.calls) {
     throw new Error(`API returned calls in unexpected format: ${typeof response?.calls}`);
   }
   const calls = Array.isArray(response.calls) ? response.calls : [];
-  const records = response.records || {};
+  const records = response.records || {
+    totalRecords: 0,
+    currentPageSize: 0,
+    currentPageNumber: 0,
+    cursor: '',
+  };
   return { calls, records };
 }
 
@@ -145,7 +151,7 @@ export async function handleListCalls(conn: GongConnection, args: ListCallsArgs)
   try {
     const params = buildPaginationParams(args);
 
-    const response = await conn.get<any>('/calls', params);
+    const response = await conn.get<GongCallResponse>('/calls', params);
     
     const { calls, records } = extractCallsAndRecords(response);
     
@@ -170,7 +176,7 @@ export async function handleListCallsByDateRange(conn: GongConnection, args: Lis
     params.fromDateTime = args.fromDateTime;
     params.toDateTime = args.toDateTime;
 
-    const response = await conn.get<any>('/calls', params);
+    const response = await conn.get<GongCallResponse>('/calls', params);
     
     const { calls, records } = extractCallsAndRecords(response);
     
@@ -191,9 +197,9 @@ export async function handleListCallsByDateRange(conn: GongConnection, args: Lis
 
 export async function handleGetCall(conn: GongConnection, args: GetCallArgs): Promise<{ content: string[] }> {
   try {
-    const response = await conn.get<any>(`/calls/${args.callId}`);
+    const response = await conn.get<GongCallSingleResponse>(`/calls/${args.callId}`);
     
-    const call = normalizeCall(response);
+    const call = normalizeCall(response.call);
 
     return { content: [formatCallListEntry(call)] };
   } catch (error) {

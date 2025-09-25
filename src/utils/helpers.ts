@@ -1,3 +1,5 @@
+import { GongRecords } from "../types/gong.js";
+
 // Helper: build pagination query params from args
 export function buildPaginationParams(args: { pageNumber?: number; pageSize?: number; cursor?: string }): Record<string, any> {
     const params: Record<string, any> = {};
@@ -8,7 +10,7 @@ export function buildPaginationParams(args: { pageNumber?: number; pageSize?: nu
   }
   
 // Helper: compute pagination metrics and render summary line
-export function computeAndFormatPagination(records: any, fallbackPageNumber: number, fallbackPageSize: number, totalRecordsFromItems: number): { summary: string } {
+export function computeAndFormatPagination(records: GongRecords, fallbackPageNumber: number, fallbackPageSize: number, totalRecordsFromItems: number): { summary: string } {
     const totalRecords = typeof records.totalRecords === 'number' ? records.totalRecords : totalRecordsFromItems;
     const currentPage = typeof records.currentPageNumber === 'number' ? records.currentPageNumber : fallbackPageNumber;
     const currentPageSize = typeof records.currentPageSize === 'number' ? records.currentPageSize : fallbackPageSize;

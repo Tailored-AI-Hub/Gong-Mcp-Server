@@ -1,6 +1,7 @@
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { GongConnection } from "../utils/connection.js";
-import { GongInteractionFilter, GongInteractionResponse } from "../types/gong.js";
+import { GongInteractionResponse, GongInteraction, GongInteractionStats } from "../types/gong.js";
+import { buildPaginationParams, computeAndFormatPagination } from "../utils/helpers.js";
 
 export const GET_INTERACTION_STATS: Tool = {
   name: "gong_get_interaction_stats",
@@ -12,15 +13,20 @@ Example:
     "fromDate": "2025-01-01",
     "toDate": "2025-07-13",
     "__userIds": ["1234567890"]
-  }
+  },
+  "pageNumber": 1,
+  "pageSize": 10,
+  "cursor": "1234567890"
 }
 
-Returns: Interaction events or per-person metrics depending on org settings. Includes call IDs, interaction types, timestamps, durations, participants, and optional summaries.
+Returns: Interaction events or per-person metrics depending on org settings. Metrics include Talk Ratio, Longest Monologue, Longest Customer Story, Interactivity, Patience and Question Rate.
 
 Notes:
 - Dates must be YYYY-MM-DD.
 - Output can be a flat interactions list or peopleInteractionStats with per-person aggregates.
-- Narrow the date range for faster results.`,
+- Narrow the date range for faster results.
+- Use pageNumber (zero-based) and pageSize to paginate.
+- You can also pass a cursor returned from the previous response if available.`,
   inputSchema: {
     type: "object",
     properties: {
@@ -46,6 +52,18 @@ Notes:
             required: ["fromDate", "toDate"]
           }
         },
+        pageNumber: {
+          type: "number",
+          description: "Zero-based page number to fetch"
+        },
+        pageSize: {
+          type: "number",
+          description: "Number of users per page (e.g., 100)"
+        },
+        cursor: {
+          type: "string",
+          description: "Cursor token for fetching the next page, if provided by API"
+        },
     required: ["filter"]
   }
 };
@@ -55,64 +73,10 @@ export interface GetInteractionStatsArgs {
     fromDate: string;
     toDate: string;
     __userIds?: string[];
-  }
-}
-
-function extractCallId(interaction: any): string {
-  return (
-    interaction.callId ||
-    interaction.call_id ||
-    interaction.callID ||
-    interaction.call?.id ||
-    interaction.call?.callId ||
-    interaction.event?.callId ||
-    interaction.meta?.callId ||
-    interaction.metadata?.callId ||
-    'Unknown'
-  );
-}
-
-function extractType(interaction: any): string {
-  return (
-    interaction.interactionType ||
-    interaction.type ||
-    interaction.eventType ||
-    interaction.category ||
-    interaction.kind ||
-    'Unknown'
-  );
-}
-
-function extractTimestamp(interaction: any): string {
-  return (
-    interaction.timestamp ||
-    interaction.time ||
-    interaction.occurredAt ||
-    interaction.createdAt ||
-    interaction.eventTime ||
-    interaction.startedAt ||
-    'Unknown'
-  );
-}
-
-function extractDurationSeconds(interaction: any): number {
-  const d = interaction.duration ?? interaction.durationSeconds ?? interaction.length ?? interaction.metrics?.duration;
-  const n = Number(d);
-  if (Number.isFinite(n) && n >= 0) return n;
-  return 0;
-}
-
-function extractParticipants(interaction: any): string {
-  const p = interaction.participants ?? interaction.participantNames ?? interaction.speakers ?? interaction.entities?.participants;
-  if (!p) return 'Unknown';
-  if (Array.isArray(p)) {
-    // Could be array of strings or objects
-    const names = p.map((x: any) => (typeof x === 'string' ? x : x?.name || x?.displayName || x?.email)).filter(Boolean);
-    if (names.length > 0) return names.join(', ');
-    return 'Unknown';
-  }
-  if (typeof p === 'string') return p;
-  return 'Unknown';
+  },
+  pageNumber?: number;
+  pageSize?: number;
+  cursor?: string;
 }
 
 export async function handleGetInteractionStats(conn: GongConnection, args: GetInteractionStatsArgs): Promise<{ content: string[] }> {
@@ -122,123 +86,31 @@ export async function handleGetInteractionStats(conn: GongConnection, args: GetI
       throw new Error('fromDate and toDate are required');
     }
 
-    const requestBody: GongInteractionFilter = {
-      filter: args.filter
-    };
+    const params = buildPaginationParams(args);
+    params.filter = args.filter;
 
-    if (args.filter.__userIds && args.filter.__userIds.length > 0) {
-      requestBody.filter.__userIds = args.filter.__userIds;
-    }
-
-    const interactionsResponse = await conn.post<any>('/stats/interaction', requestBody);
+    const interactionsResponse = await conn.post<GongInteractionResponse>('/stats/interaction', params);
     
-    // Special case: people-level interaction stats
-    if (Array.isArray(interactionsResponse?.peopleInteractionStats)) {
-      const people = interactionsResponse.peopleInteractionStats as Array<any>;
-      const content = [
-        `Interaction Statistics (${args.filter.fromDate} to ${args.filter.toDate}):\n` +
-        `Total People: ${people.length}\n` +
-        `\nPer-Person Metrics:\n` +
-        people.map((person: any) => {
-          const userId = person.userId || 'Unknown';
-          const email = person.userEmailAddress || 'Unknown';
-          const metricsArr = Array.isArray(person.personInteractionStats) ? person.personInteractionStats : [];
-          const metricsStr = metricsArr
-            .map((m: any) => `  - ${m.name || 'Metric'}: ${typeof m.value === 'number' ? m.value : (m.value ?? 'N/A')}`)
-            .join('\n');
-          return (
-            `User: ${email} (ID: ${userId})\n` +
-            `${metricsStr}`
-          );
-        }).join('\n\n')
-      ];
-      return { content };
-    }
-    
-    // Try multiple possible shapes to extract an array of interactions
-    let interactionsList: any[] | undefined;
+    const interactionsSection = interactionsResponse?.peopleInteractionStats ? interactionsResponse.peopleInteractionStats.map((interaction: GongInteraction) => {
+      const header = `User ID: ${interaction.userId || 'N/A'}\n` +
+        `  User Email: ${interaction.userEmailAddress || 'N/A'}\n`
+      
+      const personMetrics = interaction.personInteractionStats.map((metric: GongInteractionStats) => {
+        return `  - ${metric.name || 'Metric'}: ${typeof metric.value === 'number' ? metric.value : (metric.value ?? 'N/A')}`;
+      }).join('\n');
 
-    const candidates: any[] = [
-      interactionsResponse?.interactions,
-      interactionsResponse?.data?.interactions,
-      interactionsResponse?.data,
-      interactionsResponse?.records,
-      interactionsResponse?.items,
-      interactionsResponse?.list,
-      interactionsResponse?.results,
-      interactionsResponse?.events,
-      Array.isArray(interactionsResponse) ? interactionsResponse : undefined,
-    ].filter(Boolean);
+      return `${header}\n  Person Metrics:\n${personMetrics}`;
+    }).join('\n\n') : '';
 
-    for (const candidate of candidates) {
-      if (Array.isArray(candidate)) {
-        interactionsList = candidate;
-        break;
-      }
-    }
+    const { summary: paginationInfo } = computeAndFormatPagination(
+      interactionsResponse.records,
+      typeof args.pageNumber === 'number' ? args.pageNumber : 0,
+      typeof args.pageSize === 'number' ? args.pageSize : interactionsResponse.peopleInteractionStats?.length || 0,
+      interactionsResponse.peopleInteractionStats?.length || 0
+    );
 
-    // Fallback: scan shallow properties to find first array of objects
-    if (!interactionsList && interactionsResponse && typeof interactionsResponse === 'object') {
-      for (const value of Object.values(interactionsResponse)) {
-        if (Array.isArray(value) && value.length >= 0) {
-          interactionsList = value as any[];
-          break;
-        }
-        if (value && typeof value === 'object') {
-          for (const nested of Object.values(value)) {
-            if (Array.isArray(nested)) {
-              interactionsList = nested as any[];
-              break;
-            }
-          }
-          if (interactionsList) break;
-        }
-      }
-    }
-
-    if (!interactionsList || !Array.isArray(interactionsList)) {
-      const availableKeys = Object.keys(interactionsResponse || {});
-      throw new Error(`Unexpected API response structure - interactions not found (keys: ${availableKeys.join(', ')})`);
-    }
-
-    const content = [
-      `Interaction Statistics (${args.filter.fromDate} to ${args.filter.toDate}):\n` +
-      `Total Interactions: ${interactionsList.length}\n` +
-      `\nInteraction Details:\n` +
-      `${interactionsList.map(interaction => {
-        const callId = extractCallId(interaction);
-        const type = extractType(interaction);
-        const ts = extractTimestamp(interaction);
-        const dur = extractDurationSeconds(interaction);
-        const parts = extractParticipants(interaction);
-        const summary = interaction.summary || interaction.note || interaction.description || '';
-        return (
-          `Call ID: ${callId}\n` +
-          `  Type: ${type}\n` +
-          `  Timestamp: ${ts}\n` +
-          `  Duration: ${formatDuration(dur)}\n` +
-          `  Participants: ${parts}\n` +
-          `${summary ? `  Summary: ${summary}` : ''}`
-        );
-      }).join('\n\n')}`
-    ];
-
-    return { content };
+    return { content: [paginationInfo, interactionsSection] };
   } catch (error) {
     throw new Error(`Failed to get interaction stats: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
-
-function formatDuration(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remainingSeconds = seconds % 60;
-  
-  if (hours > 0) {
-    return `${hours}h ${minutes}m ${remainingSeconds}s`;
-  } else if (minutes > 0) {
-    return `${minutes}m ${remainingSeconds}s`;
-  } else {
-    return `${remainingSeconds}s`;
   }
 }

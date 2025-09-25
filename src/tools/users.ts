@@ -1,5 +1,6 @@
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { GongConnection } from "../utils/connection.js";
+import { GongUser, GongUserResponse, GongRecords, GongUserHistoryResponse, GongUserHistory, GongUserSingleResponse } from "../types/gong.js";
 import { buildPaginationParams, computeAndFormatPagination } from "../utils/helpers.js";
 
 export const LIST_USERS: Tool = {
@@ -200,7 +201,7 @@ export interface ListUsersByFiltersArgs {
 }
 
 // Helper: normalize a raw Gong user object into a consistent shape
-function normalizeUser(raw: any): {
+function normalizeUser(raw: GongUser): {
   id: string;
   name: string;
   email: string;
@@ -232,12 +233,17 @@ function formatUserListEntry(user: ReturnType<typeof normalizeUser>): string {
 }
 
 // Helper: extract users and records safely
-function extractUsersAndRecords(response: any): { users: any[]; records: any } {
+function extractUsersAndRecords(response: GongUserResponse): { users: GongUser[]; records: GongRecords } {
   if (!response?.users) {
     throw new Error(`API returned users in unexpected format: ${typeof response?.users}`);
   }
   const users = Array.isArray(response.users) ? response.users : [];
-  const records = response.records || {};
+  const records = response.records || {
+    totalRecords: 0,
+    currentPageSize: 0,
+    currentPageNumber: 0,
+    cursor: '',
+  };
   return { users, records };
 }
 
@@ -245,7 +251,7 @@ export async function handleListUsers(conn: GongConnection, args: ListUsersArgs 
   try {
     const params = buildPaginationParams(args);
 
-    const response = await conn.get<any>('/users', params);
+    const response = await conn.get<GongUserResponse>('/users', params);
     
     const { users, records } = extractUsersAndRecords(response);
     
@@ -269,7 +275,7 @@ export async function handleListUsers(conn: GongConnection, args: ListUsersArgs 
 
 export async function handleGetUser(conn: GongConnection, args: GetUserArgs): Promise<{ content: string[] }> {
   try {
-    const response = await conn.get<any>(`/users/${args.userId}`);
+    const response = await conn.get<GongUserSingleResponse>(`/users/${args.userId}`);
     
     // Handle different possible user object structures
     const userData = response.user;
@@ -293,9 +299,9 @@ export async function handleGetUser(conn: GongConnection, args: GetUserArgs): Pr
 
 export async function handleGetUserHistory(conn: GongConnection, args: GetUserHistoryArgs): Promise<{ content: string[] }> {
   try {
-    const response = await conn.get<any>(`/users/${args.userId}/settings/history`);
+    const response = await conn.get<GongUserHistoryResponse>(`/users/${args.userId}/settings/history`);
 
-    const content = response.userSettingsHistory.map((history: any) => {
+    const content = response.userSettingsHistory.map((history: GongUserHistory) => {
       return `Setting: ${history.setting}\n` +
         `Value: ${history.value}\n` +
         `Timestamp: ${history.time}\n` +
@@ -312,7 +318,7 @@ export async function handleListUsersByFilters(conn: GongConnection, args: ListU
   try {
     const params = buildPaginationParams(args);
 
-    const response = await conn.get<any>('/users/extensive', {
+    const response = await conn.get<GongUserResponse>('/users/extensive', {
       ...params,
       ...args.filter
     });

@@ -1,154 +1,157 @@
 export interface GongCall {
-  call: {
-    id: string;
-    url: string;
-    direction?: string;
-    title?: string;
-    scheduled?: string;
-    started?: string;
-    duration?: number;
-    primaryUserId?: string;
-    language?: string;
-    purpose?: string;
-  }
-}
-
-export interface GongParticipant {
   id: string;
-  name: string;
-  email?: string;
-  role?: string;
-}
-
-export interface GongCallMetadata {
-  callType?: string;
+  url: string;
   direction?: string;
-  status?: string;
-  recordingUrl?: string;
+  title?: string;
+  scheduled?: string;
+  started?: string;
+  duration?: number;
+  primaryUserId?: string;
+  language?: string;
+  purpose?: string;
 }
 
+export interface GongRecords {
+  totalRecords: number;
+  currentPageSize: number;
+  currentPageNumber: number;
+  cursor?: string;
+}
+
+export interface GongCallResponse {
+  requestId: string;
+  calls: GongCall[];
+  records: GongRecords;
+}
+
+export interface GongCallSingleResponse {
+  requestId: string;
+  call: GongCall;
+}
+
+export interface GongTranscriptResponse {
+  requestId: string;
+  records: GongRecords;
+  callTranscripts: GongTranscript[];
+}
 export interface GongTranscript {
   callId: string;
   transcript: GongTranscriptSegment[];
-  metadata?: GongTranscriptMetadata;
 }
 
 export interface GongTranscriptSegment {
   speakerId: string;
-  speakerName: string;
-  text: string;
-  startTime: number;
-  endTime: number;
-  confidence?: number;
+  topic: any;
+  sentences: GongTranscriptSentence[];
 }
 
-export interface GongTranscriptMetadata {
-  language?: string;
-  wordCount?: number;
-  duration?: number;
+export interface GongTranscriptSentence {
+  start: number;
+  end: number;
+  text: string;
 }
 
 export interface GongUser {
   id: string;
-  name: string;
-  email: string;
+  firstName: string;
+  lastName: string;
+  emailAddress: string;
+  created: string;
   title?: string;
-  department?: string;
   managerId?: string;
-  isActive?: boolean;
+  active?: boolean;
+}
+
+export interface GongUserResponse {
+  requestId: string;
+  users: GongUser[];
+  records: GongRecords;
+}
+
+export interface GongUserSingleResponse {
+  requestId: string;
+  user: GongUser;
+}
+
+export interface GongUserHistory {
+  setting: string;
+  value: string;
+  time: string;
+}
+
+export interface GongUserHistoryResponse {
+  requestId: string;
+  userSettingsHistory: GongUserHistory[];
+}
+
+export interface GongActivityResponse {
+  requestId: string;
+  usersAggregateActivityStats: GongActivityStats[];
+  records: GongRecords;
 }
 
 export interface GongActivityStats {
   userId: string;
-  totalCalls: number;
-  totalDuration: number;
-  averageCallDuration: number;
-  callsByType: Record<string, number>;
-  callsByDirection: Record<string, number>;
+  userEmailAddress: string;
+  userAggregateActivityStats: {
+    callsAsHost: number;
+    callsGaveFeedback: number;
+    callsRequestedFeedback: number;
+    callsReceivedFeedback: number;
+    ownCallsListenedTo: number;
+    othersCallsListenedTo: number;
+    callsSharedInternally: number;
+    callsSharedExternally: number;
+    callsScorecardsFilled: number;
+    callsScorecardsReceived: number;
+    callsAttended: number;
+    callsCommentsGiven: number;
+    callsCommentsReceived: number;
+    callsMarkedAsFeedbackGiven: number;
+    callsMarkedAsFeedbackReceived: number;
+  };
 }
-
-export interface GongActivityAggregateFilter {
-  filter: {
-    fromDate: string;
-    toDate: string;
-    __userIds?: string[];
-  }
-}
-
-export interface GongActivityAggregateResponse {
-  totalCalls: number;
-  totalDuration: number;
-  averageCallDuration: number;
-  callsByType: Record<string, number>;
-  callsByDirection: Record<string, number>;
-  callsByUser: Record<string, GongActivityStats>;
-}
-
-export interface GongActivityPeriodFilter extends GongActivityAggregateFilter {
-  aggregationPeriod: 'DAY' | 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR';
-}
-
-export interface GongActivityPeriodResponse {
-  periods: Array<{
-    period: string;
-    totalCalls: number;
-    totalDuration: number;
-    averageCallDuration: number;
-  }>;
-}
-
-export interface GongDayByDayFilter extends GongActivityPeriodFilter {
-  includeWeekends?: boolean;
-}
-
-export interface GongDayByDayResponse {
-  dailyStats: Array<{
-    date: string;
-    totalCalls: number;
-    totalDuration: number;
-    averageCallDuration: number;
-    callsByType: Record<string, number>;
-  }>;
-}
-
-export interface GongScorecardFilter extends GongActivityPeriodFilter {
-  scorecardType?: string;
-  includeMetrics?: string[];
-}
-
 export interface GongScorecardResponse {
-  scorecards: Array<{
-    period: string;
-    score: number;
-    metrics: Record<string, number>;
-    insights: string[];
-  }>;
+  requestId: string;
+  records: GongRecords;
+  answeredScorecards: GongScorecard[];
 }
 
-export interface GongInteractionFilter extends GongActivityAggregateFilter {
-  interactionTypes?: string[];
-  includeTranscripts?: boolean;
+export interface GongScorecard {
+  answeredScorecardId: string;
+  scorecardId: string;
+  scorecardName: string;
+  callId: string;
+  callStartTime: string;
+  reviewedUserId: string;
+  reviewerUserId: string;
+  reviewMethod: string;
+  reviewTime: string;
+  visibilityType: string;
+  answers: GongScorecardAnswer[];
+}
+
+export interface GongScorecardAnswer {
+  questionId: string;
+  questionRevisionId: string;
+  answerText: string;
+  score: number;
+  isOverall: boolean;
 }
 
 export interface GongInteractionResponse {
-  interactions: Array<{
-    callId: string;
-    interactionType: string;
-    timestamp: string;
-    duration: number;
-    participants: string[];
-    summary?: string;
-  }>;
+  requestId: string;
+  peopleInteractionStats: GongInteraction[];
+  records: GongRecords;
 }
 
-export interface GongError {
-  statusCode: number;
-  message: string;
-  details?: string;
+export interface GongInteraction {
+  userId: string;
+  userEmailAddress: string;
+  personInteractionStats: GongInteractionStats[];
 }
 
-export interface GongApiResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: GongError;
+export interface GongInteractionStats {
+  name: string;
+  value: number;
 }

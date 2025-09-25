@@ -23,8 +23,6 @@ import {
   GetUserArgs, ListUsersByFiltersArgs, GetUserHistoryArgs
 } from "./tools/users.js";
 import { GET_ACTIVITY_AGGREGATE, handleGetActivityAggregate, GetActivityAggregateArgs } from "./tools/activityStats.js";
-import { GET_ACTIVITY_AGGREGATE_BY_PERIOD, handleGetActivityAggregateByPeriod, GetActivityAggregateByPeriodArgs } from "./tools/activityPeriod.js";
-import { GET_ACTIVITY_DAY_BY_DAY, handleGetActivityDayByDay, GetActivityDayByDayArgs } from "./tools/dayByDay.js";
 import { GET_ACTIVITY_SCORECARDS, handleGetActivityScorecards, GetActivityScorecardsArgs } from "./tools/scorecards.js";
 import { GET_INTERACTION_STATS, handleGetInteractionStats, GetInteractionStatsArgs } from "./tools/interaction.js";
 
@@ -72,8 +70,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       GET_USER_HISTORY,
       LIST_USERS_BY_FILTERS,
       GET_ACTIVITY_AGGREGATE,
-      GET_ACTIVITY_AGGREGATE_BY_PERIOD,
-      GET_ACTIVITY_DAY_BY_DAY,
       GET_ACTIVITY_SCORECARDS,
       GET_INTERACTION_STATS,
     ],
@@ -199,36 +195,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
           throw new Error('fromDate and toDate are required');
         }
         return normalizeToolResult(await handleGetActivityAggregate(conn!, validated));
-      }
-
-      case "gong_get_activity_aggregate_by_period": {
-        const validated: GetActivityAggregateByPeriodArgs = {
-          aggregationPeriod: argsOrEmpty.aggregationPeriod as 'DAY' | 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR',
-          filter: {
-            fromDate: argsOrEmpty.filter?.fromDate as string,
-            toDate: argsOrEmpty.filter?.toDate as string,
-            __userIds: argsOrEmpty.filter?.userIds as string[] | undefined,
-          }
-        };
-        if (!validated.aggregationPeriod || !validated.filter.fromDate || !validated.filter.toDate) {
-          throw new Error('aggregationPeriod, fromDate, and toDate are required');
-        }
-        return normalizeToolResult(await handleGetActivityAggregateByPeriod(conn!, validated));
-      }
-
-      case "gong_get_activity_day_by_day": {
-        const validated: GetActivityDayByDayArgs = {
-          aggregationPeriod: argsOrEmpty.aggregationPeriod as 'DAY' | 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR',
-          filter: {
-            fromDate: argsOrEmpty.filter?.fromDate as string,
-            toDate: argsOrEmpty.filter?.toDate as string,
-            __userIds: argsOrEmpty.filter?.userIds as string[] | undefined,
-          }
-        };
-        if (!validated.aggregationPeriod || !validated.filter.fromDate || !validated.filter.toDate) {
-          throw new Error('aggregationPeriod, fromDate, and toDate are required');
-        }
-        return normalizeToolResult(await handleGetActivityDayByDay(conn!, validated));
       }
 
       case "gong_get_activity_scorecards": {
