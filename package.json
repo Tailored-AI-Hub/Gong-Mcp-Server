@@ -1,6 +1,6 @@
 {
   "name": "@tailoredai/gong-mcp-server",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A Gong API connector MCP Server.",
   "main": "dist/start.js",
   "types": "dist/index.d.ts",
