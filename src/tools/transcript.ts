@@ -67,15 +67,15 @@ export async function handleGetTranscript(conn: GongConnection, args: GetTranscr
 
     const paginationParams = buildPaginationParams(args);
 
-    const params = {
+    const body = {
       ...paginationParams,
       filter: {
         callIds: args.callIds
       },
     };
 
-    // Call Gong API for transcripts
-    const response = await conn.get<GongTranscriptResponse>('/calls/transcript', params);
+    // Call Gong API for transcripts (POST per Gong API)
+    const response = await conn.post<GongTranscriptResponse>('/calls/transcript', body);
 
     if (!response.callTranscripts || response.callTranscripts.length === 0) {
       throw new Error('No transcripts found');

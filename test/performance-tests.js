@@ -312,8 +312,7 @@ describe('Gong MCP Server Performance Tests', () => {
       }
 
       nock(baseURL)
-        .get('/calls/transcript')
-        .query(true)
+        .post('/calls/transcript')
         .reply(200, { ...largeTranscript, records: { totalRecords: 1, currentPageSize: 1, currentPageNumber: 0 } });
 
       const startTime = performance.now();

@@ -110,8 +110,11 @@ describe('Gong MCP Server Unit Tests', () => {
   describe('Transcript API', () => {
     test('should get transcript successfully', async () => {
       nock(baseURL)
-        .get('/calls/transcript')
-        .query(true)
+        .post('/calls/transcript', {
+          filter: {
+            callIds: testInputs.getTranscript.callIds
+          }
+        })
         .reply(200, { ...mockTranscriptResponse, records: { totalRecords: 1, currentPageSize: 1, currentPageNumber: 0 } });
 
       const result = await handleGetTranscript(gongConnection, testInputs.getTranscript);
@@ -125,8 +128,7 @@ describe('Gong MCP Server Unit Tests', () => {
 
     test('should handle empty transcript response', async () => {
       nock(baseURL)
-        .get('/calls/transcript')
-        .query(true)
+        .post('/calls/transcript')
         .reply(200, { callTranscripts: [] });
 
       try {
