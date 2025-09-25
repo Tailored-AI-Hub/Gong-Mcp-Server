@@ -33,14 +33,14 @@ Get detailed information about a specific call:
 * Retrieve call by unique ID
 * Full call metadata and participant information
 * Recording URLs and call status
-* Example: "Get details for call ID 2167868958109749118"
+* Example: "Get details for call ID 1234567890"
 
 ### gong_get_transcript
 Get call transcripts for analysis:
 * Retrieve transcripts for one or more calls
 * Speaker identification and timing
 * Optional metadata inclusion
-* Example: "Get transcript for call ID 379333695432645797"
+* Example: "Get transcript for call ID 1234567890"
 
 ### gong_list_users
 List all users in the Gong organization:
@@ -54,7 +54,7 @@ Get detailed information about a specific user:
 * User profile and contact details
 * Department and manager relationships
 * Active status information
-* Example: "Get details for user ID 1587172352477568464"
+* Example: "Get details for user ID 1234567890"
 
 ### gong_get_activity_aggregate
 Get aggregate activity statistics:
@@ -132,7 +132,7 @@ Add to your `claude_desktop_config.json`:
 ```
 "Get activity stats for the sales team this quarter"
 "Show me the top performers by call volume"
-"Generate a scorecard for user 1587172352477568464"
+"Generate a scorecard for user 1234567890"
 ```
 
 ### Team Analytics

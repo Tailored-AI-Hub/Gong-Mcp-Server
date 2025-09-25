@@ -11,7 +11,11 @@ import {
 import * as dotenv from "dotenv";
 
 import { createGongConnection } from "./utils/connection.js";
-import { LIST_CALLS, GET_CALL, handleListCalls, handleGetCall, ListCallsArgs, GetCallArgs } from "./tools/calls.js";
+import { 
+  LIST_CALLS, GET_CALL, LIST_CALLS_BY_DATE_RANGE,
+  handleListCalls, handleGetCall, handleListCallsByDateRange,
+  ListCallsArgs, GetCallArgs, ListCallsArgsDateRange 
+} from "./tools/calls.js";
 import { GET_TRANSCRIPT, handleGetTranscript, GetTranscriptArgs } from "./tools/transcript.js";
 import { LIST_USERS, GET_USER, handleListUsers, handleGetUser, GetUserArgs } from "./tools/users.js";
 import { GET_ACTIVITY_AGGREGATE, handleGetActivityAggregate, GetActivityAggregateArgs } from "./tools/activityStats.js";
@@ -56,6 +60,7 @@ const server = new Server(
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [
       LIST_CALLS,
+      LIST_CALLS_BY_DATE_RANGE,
       GET_CALL,
       GET_TRANSCRIPT,
       LIST_USERS,
@@ -87,14 +92,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
 
     switch (name) {
       case "gong_list_calls": {
-        const validated: ListCallsArgs = {
+        const validated: ListCallsArgs = {};
+        return normalizeToolResult(await handleListCalls(conn!, validated));
+      }
+
+      case "gong_list_call_date_range": {
+        const validated: ListCallsArgsDateRange = {
           fromDateTime: argsOrEmpty.fromDateTime as string,
           toDateTime: argsOrEmpty.toDateTime as string,
         };
         if (!validated.fromDateTime || !validated.toDateTime) {
           throw new Error('fromDateTime and toDateTime are required');
         }
-        return normalizeToolResult(await handleListCalls(conn!, validated));
+        return normalizeToolResult(await handleListCallsByDateRange(conn!, validated));
       }
 
       case "gong_get_call": {
