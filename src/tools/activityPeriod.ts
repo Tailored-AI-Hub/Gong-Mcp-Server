@@ -10,9 +10,9 @@ Example:
 {
   "aggregationPeriod": "MONTH",
   "filter": {
-    "fromDate": "2022-01-01",
-    "toDate": "2022-09-13",
-    "__userIds": ["1587172352477568464"]
+    "fromDate": "2025-01-01",
+    "toDate": "2025-09-13",
+    "__userIds": ["1234567890"]
   }
 }
 

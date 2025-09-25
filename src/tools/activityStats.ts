@@ -9,9 +9,9 @@ export const GET_ACTIVITY_AGGREGATE: Tool = {
 Example:
 {
   "filter": {
-    "fromDate": "2022-01-01",
+    "fromDate": "2025-01-01",
     "toDate": "2025-07-13",
-    "__userIds": ["1587172352477568464"]
+    "__userIds": ["1234567890"]
   }
 }
 

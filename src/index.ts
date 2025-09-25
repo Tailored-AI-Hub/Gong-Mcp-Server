@@ -17,7 +17,11 @@ import {
   ListCallsArgs, GetCallArgs, ListCallsArgsDateRange 
 } from "./tools/calls.js";
 import { GET_TRANSCRIPT, handleGetTranscript, GetTranscriptArgs } from "./tools/transcript.js";
-import { LIST_USERS, GET_USER, handleListUsers, handleGetUser, GetUserArgs } from "./tools/users.js";
+import { 
+  LIST_USERS, GET_USER, LIST_USERS_BY_FILTERS, GET_USER_HISTORY,
+  handleListUsers, handleGetUser, handleListUsersByFilters, handleGetUserHistory,
+  GetUserArgs, ListUsersByFiltersArgs, GetUserHistoryArgs
+} from "./tools/users.js";
 import { GET_ACTIVITY_AGGREGATE, handleGetActivityAggregate, GetActivityAggregateArgs } from "./tools/activityStats.js";
 import { GET_ACTIVITY_AGGREGATE_BY_PERIOD, handleGetActivityAggregateByPeriod, GetActivityAggregateByPeriodArgs } from "./tools/activityPeriod.js";
 import { GET_ACTIVITY_DAY_BY_DAY, handleGetActivityDayByDay, GetActivityDayByDayArgs } from "./tools/dayByDay.js";
@@ -65,6 +69,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       GET_TRANSCRIPT,
       LIST_USERS,
       GET_USER,
+      GET_USER_HISTORY,
+      LIST_USERS_BY_FILTERS,
       GET_ACTIVITY_AGGREGATE,
       GET_ACTIVITY_AGGREGATE_BY_PERIOD,
       GET_ACTIVITY_DAY_BY_DAY,
@@ -92,14 +98,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
 
     switch (name) {
       case "gong_list_calls": {
-        const validated: ListCallsArgs = {};
+        const validated: ListCallsArgs = {
+          pageNumber: typeof argsOrEmpty.pageNumber === 'number' ? (argsOrEmpty.pageNumber as number) : undefined,
+          pageSize: typeof argsOrEmpty.pageSize === 'number' ? (argsOrEmpty.pageSize as number) : undefined,
+          cursor: typeof argsOrEmpty.cursor === 'string' ? (argsOrEmpty.cursor as string) : undefined,
+        };
         return normalizeToolResult(await handleListCalls(conn!, validated));
       }
 
-      case "gong_list_call_date_range": {
+      case "gong_list_calls_by_date_range": {
         const validated: ListCallsArgsDateRange = {
           fromDateTime: argsOrEmpty.fromDateTime as string,
           toDateTime: argsOrEmpty.toDateTime as string,
+          pageNumber: typeof argsOrEmpty.pageNumber === 'number' ? (argsOrEmpty.pageNumber as number) : undefined,
+          pageSize: typeof argsOrEmpty.pageSize === 'number' ? (argsOrEmpty.pageSize as number) : undefined,
+          cursor: typeof argsOrEmpty.cursor === 'string' ? (argsOrEmpty.cursor as string) : undefined,
         };
         if (!validated.fromDateTime || !validated.toDateTime) {
           throw new Error('fromDateTime and toDateTime are required');
@@ -130,7 +143,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
       }
 
       case "gong_list_users": {
-        return normalizeToolResult(await handleListUsers(conn!));
+        const validated = {
+          includeInactive: typeof argsOrEmpty.includeInactive === 'boolean' ? (argsOrEmpty.includeInactive as boolean) : undefined,
+          pageNumber: typeof argsOrEmpty.pageNumber === 'number' ? (argsOrEmpty.pageNumber as number) : undefined,
+          pageSize: typeof argsOrEmpty.pageSize === 'number' ? (argsOrEmpty.pageSize as number) : undefined,
+          cursor: typeof argsOrEmpty.cursor === 'string' ? (argsOrEmpty.cursor as string) : undefined,
+        };
+        return normalizeToolResult(await handleListUsers(conn!, validated));
       }
 
       case "gong_get_user": {
@@ -141,6 +160,31 @@ server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
           throw new Error('userId is required');
         }
         return normalizeToolResult(await handleGetUser(conn!, validated));
+      }
+
+      case "gong_get_user_history": {
+        const validated: GetUserHistoryArgs = {
+          userId: argsOrEmpty.userId as string,
+        };
+        if (!validated.userId) {
+          throw new Error('userId is required');
+        }
+        return normalizeToolResult(await handleGetUserHistory(conn!, validated));
+      }
+
+      case "gong_list_users_by_filters": {
+        const validated: ListUsersByFiltersArgs = {
+          filter: argsOrEmpty.filter as {
+            fromDateTime: string;
+            toDateTime: string;
+            includeAvatars: boolean;
+            __primaryUserIds: string[];
+          },
+          pageNumber: typeof argsOrEmpty.pageNumber === 'number' ? (argsOrEmpty.pageNumber as number) : undefined,
+          pageSize: typeof argsOrEmpty.pageSize === 'number' ? (argsOrEmpty.pageSize as number) : undefined,
+          cursor: typeof argsOrEmpty.cursor === 'string' ? (argsOrEmpty.cursor as string) : undefined,
+        };
+        return normalizeToolResult(await handleListUsersByFilters(conn!, validated));
       }
 
       case "gong_get_activity_aggregate": {

@@ -1,13 +1,15 @@
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { GongConnection } from "../utils/connection.js";
-import { GongCall } from "../types/gong.js";
-
+import { buildPaginationParams, computeAndFormatPagination } from "../utils/helpers.js";
 
 export const LIST_CALLS: Tool = {
   name: "gong_list_calls",
   description: `List all calls. No input required.
+
+Examples:
+1) List all the calls from Gong
   
-  Returns: For each call, key metadata including ID, title, direction, scheduled/start time, duration (seconds), purpose, and language.
+Returns: For each call, key metadata including ID, title, direction, scheduled/start time, duration (seconds), purpose, and language.
   `,
 
   inputSchema: {
@@ -75,135 +77,113 @@ Notes:
   }
 };
 
-export interface ListCallsArgs {}
+export interface ListCallsArgs {
+  pageNumber?: number;
+  pageSize?: number;
+  cursor?: string;
+}
 
 export interface ListCallsArgsDateRange {
   fromDateTime: string;
   toDateTime: string;
+  pageNumber?: number;
+  pageSize?: number;
+  cursor?: string;
 }
 
 export interface GetCallArgs {
   callId: string;
 }
 
+// Helper: normalize a raw Gong call object into a consistent shape
+function normalizeCall(raw: any): {
+  id: string;
+  title: string;
+  direction: string;
+  scheduled: string;
+  started: string;
+  duration: number;
+  purpose: string;
+  language: string;
+} {
+  const id = raw?.id ?? 'N/A';
+  const title = raw?.title ?? 'N/A';
+  const direction = raw?.direction ?? 'N/A';
+  const scheduled = raw?.scheduled ?? 'N/A';
+  const started = raw?.started ?? 'N/A';
+  const duration = raw?.duration ?? 'N/A';
+  const purpose = raw?.purpose ?? 'N/A';
+  const language = raw?.language ?? 'N/A';
+  return { id, title, direction, scheduled, started, duration, purpose, language };
+}
+
+// Helper: format a normalized user into the multi-line list entry
+function formatCallListEntry(call: ReturnType<typeof normalizeCall>): string {
+  return `Call ID: ${call.id}\n` +
+    `Title: ${call.title}\n` +
+    `Direction: ${call.direction}\n` +
+    `Scheduled Time: ${call.scheduled}\n` +
+    `Started Time: ${call.started}\n` +
+    `Duration: ${call.duration}\n` +
+    `Call Purpose: ${call.purpose}\n` +
+    `Language: ${call.language}\n` +
+    `---`;
+}
+
+// Helper: extract calls and records safely
+function extractCallsAndRecords(response: any): { calls: any[]; records: any } {
+  if (!response?.calls) {
+    throw new Error(`API returned calls in unexpected format: ${typeof response?.calls}`);
+  }
+  const calls = Array.isArray(response.calls) ? response.calls : [];
+  const records = response.records || {};
+  return { calls, records };
+}
+
+
 export async function handleListCalls(conn: GongConnection, args: ListCallsArgs): Promise<{ content: string[] }> {
   try {
-    const response = await conn.get<any>('/calls');
-    
-    // Handle different possible API response structures
-    let calls: any[] = [];
-    
-    if (Array.isArray(response)) {
-      // Direct array response
-      calls = response;
-    } else if (response && response.calls && Array.isArray(response.calls)) {
-      // Nested calls property
-      calls = response.calls;
-    } else if (response && response.data && Array.isArray(response.data)) {
-      // Nested data property
-      calls = response.data;
-    } else if (response && response.results && Array.isArray(response.results)) {
-      // Nested results property
-      calls = response.results;
-    } else {
-      // Log the actual response structure for debugging
-      console.log('Unexpected API response structure:', typeof response, Object.keys(response || {}));
-      throw new Error('Unexpected API response structure - calls not found in expected format');
-    }
-    
-    if (!Array.isArray(calls)) {
-      throw new Error(`API returned calls in unexpected format: ${typeof calls}`);
-    }
-    
-    const content = calls.map(call => {
-      // Handle different call object structures
-      const callData = call.call || call;
-      const callId = callData.id || callData.callId || 'Unknown';
-      const title = callData.title || callData.name || 'N/A';
-      const direction = callData.direction || 'N/A';
-      const scheduled = callData.scheduled || callData.scheduledTime || 'N/A';
-      const started = callData.started || callData.startTime || 'N/A';
-      const duration = callData.duration || 'N/A';
-      const purpose = callData.purpose || callData.callPurpose || 'N/A';
-      const language = callData.language || 'N/A';
-      
-      return `Call Details:\n` +
-        `ID: ${callId}\n` +
-        `Title: ${title}\n` +
-        `Direction: ${direction}\n` +
-        `Scheduled Time: ${scheduled}\n` +
-        `Start Time: ${started}\n` +
-        `Duration: ${duration !== 'N/A' ? `${duration} seconds` : 'N/A'}\n` +
-        `Call Purpose: ${purpose}\n` +
-        `Language: ${language}\n` +
-        `---`;
-    });
+    const params = buildPaginationParams(args);
 
-    return { content };
+    const response = await conn.get<any>('/calls', params);
+    
+    const { calls, records } = extractCallsAndRecords(response);
+    
+    const content = calls.map(call => formatCallListEntry(normalizeCall(call)));
+    
+    const { summary: paginationInfo } = computeAndFormatPagination(
+      records,
+      typeof args.pageNumber === 'number' ? args.pageNumber : 0,
+      typeof args.pageSize === 'number' ? args.pageSize : calls.length,
+      calls.length
+    );
+
+    return { content: [paginationInfo, ...content] };
   } catch (error) {
     throw new Error(`Failed to list calls: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
-
+    
 export async function handleListCallsByDateRange(conn: GongConnection, args: ListCallsArgsDateRange): Promise<{ content: string[] }> {
   try {
-    const params: Record<string, any> = {
-      fromDateTime: args.fromDateTime,
-      toDateTime: args.toDateTime
-    };
+    const params = buildPaginationParams(args);
+    params.fromDateTime = args.fromDateTime;
+    params.toDateTime = args.toDateTime;
 
     const response = await conn.get<any>('/calls', params);
     
-    // Handle different possible API response structures
-    let calls: any[] = [];
+    const { calls, records } = extractCallsAndRecords(response);
     
-    if (Array.isArray(response)) {
-      // Direct array response
-      calls = response;
-    } else if (response && response.calls && Array.isArray(response.calls)) {
-      // Nested calls property
-      calls = response.calls;
-    } else if (response && response.data && Array.isArray(response.data)) {
-      // Nested data property
-      calls = response.data;
-    } else if (response && response.results && Array.isArray(response.results)) {
-      // Nested results property
-      calls = response.results;
-    } else {
-      // Log the actual response structure for debugging
-      console.log('Unexpected API response structure:', typeof response, Object.keys(response || {}));
-      throw new Error('Unexpected API response structure - calls not found in expected format');
-    }
+    const content = calls.map(call => formatCallListEntry(normalizeCall(call)));
     
-    if (!Array.isArray(calls)) {
-      throw new Error(`API returned calls in unexpected format: ${typeof calls}`);
-    }
-    
-    const content = calls.map(call => {
-      // Handle different call object structures
-      const callData = call.call || call;
-      const callId = callData.id || callData.callId || 'Unknown';
-      const title = callData.title || callData.name || 'N/A';
-      const direction = callData.direction || 'N/A';
-      const scheduled = callData.scheduled || callData.scheduledTime || 'N/A';
-      const started = callData.started || callData.startTime || 'N/A';
-      const duration = callData.duration || 'N/A';
-      const purpose = callData.purpose || callData.callPurpose || 'N/A';
-      const language = callData.language || 'N/A';
-      
-      return `Call Details:\n` +
-        `ID: ${callId}\n` +
-        `Title: ${title}\n` +
-        `Direction: ${direction}\n` +
-        `Scheduled Time: ${scheduled}\n` +
-        `Start Time: ${started}\n` +
-        `Duration: ${duration !== 'N/A' ? `${duration} seconds` : 'N/A'}\n` +
-        `Call Purpose: ${purpose}\n` +
-        `Language: ${language}\n` +
-        `---`;
-    });
+    const { summary: paginationInfo } = computeAndFormatPagination(
+      records,
+      typeof args.pageNumber === 'number' ? args.pageNumber : 0,
+      typeof args.pageSize === 'number' ? args.pageSize : calls.length,
+      calls.length
+    );
 
-    return { content };
+    return { content: [paginationInfo, ...content] };
   } catch (error) {
     throw new Error(`Failed to list calls: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
@@ -213,30 +193,9 @@ export async function handleGetCall(conn: GongConnection, args: GetCallArgs): Pr
   try {
     const response = await conn.get<any>(`/calls/${args.callId}`);
     
-    // Handle different possible call object structures
-    const callData = response.call || response;
-    const callId = callData.id || callData.callId || args.callId;
-    const title = callData.title || callData.name || 'N/A';
-    const direction = callData.direction || 'N/A';
-    const scheduled = callData.scheduled || callData.scheduledTime || 'N/A';
-    const started = callData.started || callData.startTime || 'N/A';
-    const duration = callData.duration || 'N/A';
-    const purpose = callData.purpose || callData.callPurpose || 'N/A';
-    const language = callData.language || 'N/A';
-    
-    const content = [
-      `Call Details:\n` +
-      `ID: ${callId}\n` +
-      `Title: ${title}\n` +
-      `Direction: ${direction}\n` +
-      `Scheduled Time: ${scheduled}\n` +
-      `Start Time: ${started}\n` +
-      `Duration: ${duration !== 'N/A' ? `${duration} seconds` : 'N/A'}\n` +
-      `Call Purpose: ${purpose}\n` +
-      `Language: ${language}`
-    ];
+    const call = normalizeCall(response);
 
-    return { content };
+    return { content: [formatCallListEntry(call)] };
   } catch (error) {
     throw new Error(`Failed to get call: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
