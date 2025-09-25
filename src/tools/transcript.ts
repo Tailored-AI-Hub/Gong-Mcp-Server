@@ -77,25 +77,29 @@ export async function handleGetTranscript(conn: GongConnection, args: GetTranscr
     // Call Gong API for transcripts
     const response = await conn.get<GongTranscriptResponse>('/calls/transcript', params);
 
+    if (!response.callTranscripts || response.callTranscripts.length === 0) {
+      throw new Error('No transcripts found');
+    }
+
     const content: string[] = response.callTranscripts.map((call: GongTranscript) => {
       let out = `Transcript for Call ID: ${call.callId}\n`;
-      out += `Total Segments: ${call.transcript.length}\n`;
+      out += `Total Segments: ${Array.isArray(call.transcript) ? call.transcript.length : 0}\n`;
       out += `\nTranscript:\n`;
-      const content = call.transcript.map((segment: GongTranscriptSegment) => {
-        `Speaker ID: ${segment.speakerId}\n`;
-        out += `Total Sentences: ${segment.sentences.length}\n`;
+      for (const segment of (call.transcript || [])) {
+        out += `Speaker ID: ${segment.speakerId}\n`;
+        out += `Total Sentences: ${Array.isArray(segment.sentences) ? segment.sentences.length : 0}\n`;
         out += `\nSentences:\n`;
-        const sentences = segment.sentences.map((sentence: GongTranscriptSentence) => {
-          return `[${formatTime(sentence.start / 1000)} - ${formatTime(sentence.end / 1000)}] ${sentence.text}\n`;
+        const sentences = (segment.sentences || []).map((sentence: GongTranscriptSentence) => {
+          return `[${formatTime(sentence.start / 1000)} - ${formatTime(sentence.end / 1000)}] ${sentence.text}`;
         });
         out += sentences.join('\n');
-      });
-      out += content.join('\n');
+        out += `\n\n`;
+      }
       return out.trim();
     });
 
     const { summary: paginationInfo } = computeAndFormatPagination(
-      response.records,
+      response.records || { totalRecords: content.length, currentPageSize: content.length, currentPageNumber: 0 },
       typeof args.pageNumber === 'number' ? args.pageNumber : 0,
       typeof args.pageSize === 'number' ? args.pageSize : response.callTranscripts.length,
       response.callTranscripts.length

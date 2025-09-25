@@ -30,7 +30,7 @@ describe('Gong MCP Server Performance Tests', () => {
       nock(baseURL)
         .get('/calls')
         .query(true)
-        .reply(200, mockGongCalls);
+        .reply(200, { calls: mockGongCalls, records: { totalRecords: mockGongCalls.length, currentPageSize: mockGongCalls.length, currentPageNumber: 0 } });
 
       const startTime = performance.now();
       const result = await handleListCalls(gongConnection, testInputs.listCalls);
@@ -44,28 +44,31 @@ describe('Gong MCP Server Performance Tests', () => {
 
     test('should handle large activity aggregates efficiently', async () => {
       // Create a larger mock response
-      const largeResponse = {
-        ...mockActivityAggregateResponse,
-        callsByUser: {}
-      };
-      
-      // Simulate 100 users
-      for (let i = 0; i < 100; i++) {
-        largeResponse.callsByUser[`user_${i}`] = {
-          totalCalls: Math.floor(Math.random() * 50),
-          totalDuration: Math.floor(Math.random() * 180000),
-          averageCallDuration: 3600,
-          callsByType: {
-            "Discovery": Math.floor(Math.random() * 20),
-            "Demo": Math.floor(Math.random() * 15),
-            "Follow-up": Math.floor(Math.random() * 15)
-          }
-        };
-      }
+      const largeUsers = Array.from({ length: 100 }, (_, i) => ({
+        userId: `user_${i}`,
+        userEmailAddress: `user_${i}@example.com`,
+        userAggregateActivityStats: {
+          callsAsHost: Math.floor(Math.random() * 50),
+          callsGaveFeedback: Math.floor(Math.random() * 10),
+          callsRequestedFeedback: Math.floor(Math.random() * 10),
+          callsReceivedFeedback: Math.floor(Math.random() * 10),
+          ownCallsListenedTo: Math.floor(Math.random() * 10),
+          othersCallsListenedTo: Math.floor(Math.random() * 10),
+          callsSharedInternally: Math.floor(Math.random() * 10),
+          callsSharedExternally: Math.floor(Math.random() * 10),
+          callsScorecardsFilled: Math.floor(Math.random() * 10),
+          callsScorecardsReceived: Math.floor(Math.random() * 10),
+          callsAttended: Math.floor(Math.random() * 50),
+          callsCommentsGiven: Math.floor(Math.random() * 10),
+          callsCommentsReceived: Math.floor(Math.random() * 10),
+          callsMarkedAsFeedbackGiven: Math.floor(Math.random() * 5),
+          callsMarkedAsFeedbackReceived: Math.floor(Math.random() * 5),
+        }
+      }));
 
       nock(baseURL)
         .post('/stats/activity/aggregate')
-        .reply(200, largeResponse);
+        .reply(200, { requestId: 'req', usersAggregateActivityStats: largeUsers, records: { totalRecords: largeUsers.length, currentPageSize: largeUsers.length, currentPageNumber: 0 } });
 
       const startTime = performance.now();
       const result = await handleGetActivityAggregate(gongConnection, testInputs.activityAggregate);
@@ -87,7 +90,7 @@ describe('Gong MCP Server Performance Tests', () => {
         nock(baseURL)
           .get('/calls')
           .query(true)
-          .reply(200, mockGongCalls);
+          .reply(200, { calls: mockGongCalls, records: { totalRecords: mockGongCalls.length, currentPageSize: mockGongCalls.length, currentPageNumber: 0 } });
       }
 
       // Execute multiple concurrent requests
@@ -122,7 +125,7 @@ describe('Gong MCP Server Performance Tests', () => {
         nock(baseURL)
           .get('/calls')
           .query(true)
-          .reply(200, mockGongCalls);
+          .reply(200, { calls: mockGongCalls, records: { totalRecords: mockGongCalls.length, currentPageSize: mockGongCalls.length, currentPageNumber: 0 } });
       }
 
       const startTime = performance.now();
@@ -160,7 +163,7 @@ describe('Gong MCP Server Performance Tests', () => {
           nock(baseURL)
             .get('/calls')
             .query(true)
-            .reply(200, mockGongCalls);
+            .reply(200, { calls: mockGongCalls, records: { totalRecords: mockGongCalls.length, currentPageSize: mockGongCalls.length, currentPageNumber: 0 } });
         }
         
         const batchStartTime = performance.now();
@@ -206,7 +209,7 @@ describe('Gong MCP Server Performance Tests', () => {
       nock(baseURL)
         .get('/calls')
         .query(true)
-        .reply(200, mockGongCalls);
+        .reply(200, { calls: mockGongCalls, records: { totalRecords: mockGongCalls.length, currentPageSize: mockGongCalls.length, currentPageNumber: 0 } });
 
       await handleListCalls(gongConnection, testInputs.listCalls);
       
@@ -267,7 +270,7 @@ describe('Gong MCP Server Performance Tests', () => {
       nock(baseURL)
         .get('/calls')
         .query(true)
-        .reply(200, largeCalls);
+        .reply(200, { calls: largeCalls, records: { totalRecords: largeCalls.length, currentPageSize: largeCalls.length, currentPageNumber: 0 } });
 
       const startTime = performance.now();
       const result = await handleListCalls(gongConnection, testInputs.listCalls);
@@ -277,7 +280,8 @@ describe('Gong MCP Server Performance Tests', () => {
       
       assert.ok(result.content);
       assert.ok(Array.isArray(result.content));
-      assert.equal(result.content.length, 1000);
+      const callEntries = result.content.filter((c) => typeof c === 'string' && c.includes('Call ID:'));
+      assert.equal(callEntries.length, 1000);
       assert.ok(responseTime < 15000, `Response time ${responseTime}ms should be less than 15000ms for large dataset`);
     });
 
@@ -308,8 +312,9 @@ describe('Gong MCP Server Performance Tests', () => {
       }
 
       nock(baseURL)
-        .post('/calls/transcript')
-        .reply(200, largeTranscript);
+        .get('/calls/transcript')
+        .query(true)
+        .reply(200, { ...largeTranscript, records: { totalRecords: 1, currentPageSize: 1, currentPageNumber: 0 } });
 
       const startTime = performance.now();
       const result = await import('../dist/tools/transcript.js').then(module => 
@@ -320,7 +325,8 @@ describe('Gong MCP Server Performance Tests', () => {
       const responseTime = endTime - startTime;
       
       assert.ok(result.content);
-      assert.ok(result.content[0].length > 10000); // Should be a large text response
+      const body = result.content.find((c) => typeof c === 'string' && c.includes('Transcript for Call ID:')) || '';
+      assert.ok(body.length > 10000); // Should be a large text response
       assert.ok(responseTime < 10000, `Response time ${responseTime}ms should be less than 10000ms for large transcript`);
     });
   });
