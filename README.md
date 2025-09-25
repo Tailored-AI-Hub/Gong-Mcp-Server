@@ -19,77 +19,57 @@ An MCP (Model Context Protocol) server implementation that integrates Claude wit
 npm install -g @tailoredai/gong-mcp-server
 ```
 
+Or run on-demand without global install:
+
+```bash
+npx -y @tailoredai/gong-mcp-server
+```
+
 ## Tools
 
 ### gong_list_calls
-List calls within a date range with optional filtering:
-* Search by date/time range
-* Optional limit on number of results
-* Returns call metadata, participants, and duration
-* Example: "List all calls from July 1st to July 31st, 2022"
+List recent calls. No inputs.
+- Response: pagination summary (may be omitted) then entries like:
+  - `Call ID`, `Title`, `Direction`, `Scheduled Time`, `Started Time`, `Duration`, `Call Purpose`, `Language`
 
 ### gong_get_call
-Get detailed information about a specific call:
-* Retrieve call by unique ID
-* Full call metadata and participant information
-* Recording URLs and call status
-* Example: "Get details for call ID 1234567890"
+Get a specific call by ID.
+- Input: `{ "callId": "2167868958109749118" }`
+- Response: one formatted call entry with the same fields as above
 
 ### gong_get_transcript
-Get call transcripts for analysis:
-* Retrieve transcripts for one or more calls
-* Speaker identification and timing
-* Optional metadata inclusion
-* Example: "Get transcript for call ID 1234567890"
+Get transcripts for one or more calls.
+- Input: `{ "filter": { "callIds": ["379333695432645797", "2167868958109749118"] } }`
+- Response: for each call:
+  - `Transcript for Call ID: ...`
+  - `Speaker ID: ...` lines
+  - Sentences with timestamps like `[mm:ss - mm:ss] text`
 
 ### gong_list_users
-List all users in the Gong organization:
-* Active and inactive user management
-* Optional result limiting
-* User role and department information
-* Example: "List all active users in the organization"
+List users with optional pagination.
+- Optional inputs: `pageNumber`, `pageSize`, `cursor`, `includeInactive`
+- Response: pagination summary then entries:
+  - `User ID`, `Name`, `Email`, `Title`, `Manager ID`, `Active`
 
 ### gong_get_user
-Get detailed information about a specific user:
-* User profile and contact details
-* Department and manager relationships
-* Active status information
-* Example: "Get details for user ID 1234567890"
+Get a specific user by ID.
+- Input: `{ "userId": "1587172352477568464" }`
+- Response: `User Details:` block with `ID`, `Name`, `Email`, `Title`, `Manager ID`, `Active`
 
 ### gong_get_activity_aggregate
-Get aggregate activity statistics:
-* Total calls, duration, and averages
-* Breakdown by call types and directions
-* Per-user statistics
-* Example: "Get activity stats from January 1st to July 13th, 2025"
-
-### gong_get_activity_aggregate_by_period
-Get activity statistics aggregated by time periods:
-* Daily, weekly, monthly, quarterly, or yearly views
-* Period-by-period breakdown
-* Filtered by users, call types, and directions
-* Example: "Get monthly activity stats from January to September 2022"
-
-### gong_get_activity_day_by_day
-Get detailed daily activity statistics:
-* Day-by-day breakdown with metrics
-* Call type distribution per day
-* Weekend inclusion options
-* Example: "Get daily activity stats for Q1 2022"
+Get user-level activity totals in a date range.
+- Input: `{ "filter": { "fromDate": "YYYY-MM-DD", "toDate": "YYYY-MM-DD", "__userIds": [optional] } }`
+- Response: header `Activity Statistics (from to)`, then `User Totals` blocks per user with fields like `callsAsHost`, `callsAttended`, feedback/listening/share stats
 
 ### gong_get_activity_scorecards
-Generate performance scorecards:
-* Performance metrics and scoring
-* Insights and recommendations
-* Customizable metric inclusion
-* Example: "Generate monthly scorecards for the sales team"
+Fetch activity scorecards.
+- Input: `{ "aggregationPeriod": "QUARTER", "filter": { "fromDate": "YYYY-MM-DD", "toDate": "YYYY-MM-DD", "__userIds": [optional] } }`
+- Response: scorecard blocks with period, score, and `Answers:` list (question/score/overall)
 
 ### gong_get_interaction_stats
-Analyze interaction patterns:
-* Interaction type analysis
-* Participant behavior patterns
-* Optional transcript snippets
-* Example: "Analyze interaction patterns for the last quarter"
+Per-person interaction metrics within a date range.
+- Input: `{ "filter": { "fromDate": "YYYY-MM-DD", "toDate": "YYYY-MM-DD", "__userIds": [optional] } }`
+- Response: for each person: `User ID`, `User Email`, then metric lines like `- Talk Ratio: 65`
 
 ## Setup
 
@@ -101,7 +81,7 @@ You need to set up your Gong API credentials:
 
 ### Usage with Claude Desktop
 
-Add to your `claude_desktop_config.json`:
+Add to your `claude_desktop_config.json` (npx):
 
 ```json
 {
@@ -109,6 +89,23 @@ Add to your `claude_desktop_config.json`:
     "gong": {
       "command": "npx",
       "args": ["-y", "@tailoredai/gong-mcp-server"],
+      "env": {
+        "GONG_ACCESS_KEY": "your_access_key",
+        "GONG_ACCESS_KEY_SECRET": "your_access_key_secret",
+        "GONG_BASE_URL": "https://api.gong.io/v2"
+      }
+    }
+  }
+}
+```
+
+Or using the globally installed binary (no npx):
+
+```json
+{
+  "mcpServers": {
+    "gong": {
+      "command": "gong-connector",
       "env": {
         "GONG_ACCESS_KEY": "your_access_key",
         "GONG_ACCESS_KEY_SECRET": "your_access_key_secret",
