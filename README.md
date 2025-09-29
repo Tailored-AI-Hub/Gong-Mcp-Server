@@ -1,4 +1,4 @@
-# Gong MCP Server
+# Gong MCP Server 
 
 An MCP (Model Context Protocol) server implementation that integrates Claude with Gong, enabling natural language interactions with your Gong call data and analytics. This server allows Claude to query, analyze, and generate insights from your sales conversations and team performance using everyday language.
 
